@@ -1,167 +1,130 @@
---Worksheet 7
+--P4 Final Implenentation
 
---Q.1
-SELECT dept_name
-FROM dept
-WHERE dept_num NOT IN (SELECT DISTINCT dept_num FROM emp);
+--1. UPDATE
+UPDATE Goal JOIN Person USING(person_id)
+SET description = 'Do 60 pushups without breaking'
+WHERE name = 'Avarie Hart';
 
---Q.2
-SELECT sname
-FROM supplier 
-WHERE s_num NOT IN (
-	SELECT DISTINCT s_num 
-	FROM sp);
+--2. DELETE
+--Find his person_id:
+SELECT person_id, name FROM Person WHERE name = “Isaiah Arroyo”;
 
---Q.3
-SELECT sname
-FROM supplier
-WHERE s_num IN (
-    SELECT s_num
-    FROM sp
-    WHERE p_num IN ('p1', 'p6'));
+--DELETE all workouts connected to Isaiah
+DELETE FROM WORKOUT WHERE person_id = SELECT person_id, name FROM Person WHERE name = “Isaiah Arroyo”;
 
---Q.4
-SELECT sname
-FROM supplier
-WHERE s_num IN (
-    SELECT s_num
-    FROM sp
-    WHERE p_num IN (
-        SELECT p_num
-        FROM part
-        WHERE pname = 'ladder'));
+--DELETE all goals connected to Isaiah:
+DELETE FROM Goal WHERE person_id = SELECT person_id, name FROM Person WHERE name = “Isaiah Arroyo”;
 
---Q.5
-SELECT DISTINCT p_num
-FROM sp
-WHERE s_num = (
-    SELECT s_num
-    FROM supplier
-    WHERE sname = 'Jones');
+--DELETE Isaiah FROM Person Table
+DELETE FROM Person WHERE name = 'Isaiah Arroyo';
 
---Q.6
-SELECT DISTINCT s_num
-FROM sp
-WHERE qty = (
-    SELECT MAX(qty)
-    FROM sp);
+--3. JOIN
+SELECT name, sets, reps, rest_time_sec FROM Person JOIN Workout USING(person_id) ORDER BY person_id;
 
---Q.7
-SELECT *
-FROM sp
-WHERE qty = (
-    SELECT MAX(qty)
-    FROM sp);
+--4. LEFT JOIN
+--Adding someone to show they will show up even without a goal
+INSERT INTO Person (person_id, name, age, gender, weight_lb)
+VALUES (6, 'Nova Winters', 29, 'Female', 150);
 
---Q.8
-SELECT sname
-FROM supplier
-WHERE s_num IN (
-    SELECT s_num
-    FROM sp
-    WHERE qty = (
-        SELECT MAX(qty)
-        FROM sp));
+SELECT p.name AS person_name, g.description AS goal
+FROM Person p
+LEFT JOIN Goal g ON p.person_id = g.person_id
+ORDER BY p.name;
 
---Q.9
-SELECT sname
-FROM supplier
-WHERE s_num IN (
-    SELECT DISTINCT s_num
-    FROM sp
-    WHERE qty > (
-        SELECT AVG(qty)
-        FROM sp));
+--5. Agregate Funciton w/ GROUP BY
+SELECT p.person_id,p.name, COUNT(DISTINCT g.goal_id) AS goal_count, COUNT(DISTINCT w.workout_id) AS workout_count
+FROM Person p
+LEFT JOIN Goal g ON p.person_id = g.person_id
+LEFT JOIN Workout w ON p.person_id = w.person_id
+GROUP BY p.person_id, p.name
+ORDER BY workout_count DESC, goal_count DESC;
 
---Q.10
--- Show avg qty
-SELECT AVG(qty) AS avg_qty FROM sp;
--- Show relevant rows
-SELECT s_num, p_num, qty
-FROM sp
-WHERE qty > (
-    SELECT AVG(qty)
-    FROM sp);
---Find names of suppliers
-SELECT sname, s_num
-FROM supplier
-WHERE s_num IN ('s1', 's4');
+--6. Subquery
+SELECT DISTINCT e.exercise_id, e.name AS exercise_name
+FROM Exercise e
+WHERE e.exercise_id IN (
+  SELECT we.exercise_id
+  FROM Workout_Exercise we
+  WHERE we.duration >= 60
+)
+ORDER BY e.exercise_id;
 
---Q.11
-SELECT sname
-FROM supplier
-WHERE sname != 'Jones'
-AND s_num IN (
-    SELECT DISTINCT s_num
-    FROM sp
-    WHERE p_num IN (
-        SELECT p_num
-        FROM sp
-        WHERE s_num = (
-            SELECT s_num FROM supplier WHERE sname = 'Jones')));
+--7 Correlated Subquery
+SELECT 
+    p.name,
+    ROUND((
+        SELECT AVG(we.duration)
+        FROM Workout_Exercise we
+        JOIN Workout w ON we.workout_id = w.workout_id
+        WHERE w.person_id = p.person_id
+    ), 2) AS avg_person_duration,
+    
+    ROUND((
+        SELECT AVG(we.duration)
+        FROM Workout_Exercise we
+        JOIN Workout w ON we.workout_id = w.workout_id
+    ), 2) AS overall_avg_duration
 
---Q.12
--- What parts does Jones supply?
-SELECT p_num
-FROM sp
-WHERE s_num = (
-    SELECT s_num FROM supplier WHERE sname = 'Jones');
-
--- Who else supplies those parts
-SELECT sname 
-	FROM supplier
-	WHERE s_num IN (
-	    SELECT s_num
-	    FROM sp WHERE p_num IN ('p2','p4','p5'));
-
---Q.13
-SELECT sname
-FROM supplier
-WHERE s_num NOT IN (
-    SELECT s_num
-    FROM sp
-    WHERE p_num IN (
-        SELECT p_num
-        FROM sp
-        WHERE s_num = (
-            SELECT s_num FROM supplier WHERE sname = 'Jones')));
-
---Q.14
--- Jones's parts
-SELECT p_num
-FROM sp
-WHERE s_num = (
-    SELECT s_num FROM supplier WHERE sname = 'Jones'
+FROM Person p
+WHERE (
+    SELECT AVG(we.duration)
+    FROM Workout_Exercise we
+    JOIN Workout w ON we.workout_id = w.workout_id
+    WHERE w.person_id = p.person_id
+) > (
+    SELECT AVG(we.duration)
+    FROM Workout_Exercise we
+    JOIN Workout w ON we.workout_id = w.workout_id
 );
--- Suppliers of those parts
-SELECT DISTINCT s_num
-FROM sp
-WHERE p_num IN (
-    SELECT p_num
-    FROM sp
-    WHERE s_num = (
-        SELECT s_num FROM supplier WHERE sname = 'Jones'));
 
---Q.15
-SELECT p_num, s_num, qty
-FROM sp AS sp1
-WHERE qty > (
-    SELECT AVG(qty)
-    FROM sp AS sp2
-    WHERE sp1.p_num = sp2.p_num);
+--8. View a
+CREATE VIEW Person_Workout_Progress AS
+SELECT 
+    p.name AS person_name,
+    COUNT(DISTINCT we.session_date) AS total_sessions,
+    SUM(we.duration) AS total_minutes,
+    MIN(g.target_date - CURRENT_DATE) AS days_until_next_goal
+FROM Person p
+JOIN Workout w ON p.person_id = w.person_id
+JOIN Workout_Exercise we ON w.workout_id = we.workout_id
+LEFT JOIN Goal g ON p.person_id = g.person_id
+GROUP BY p.name;
 
---Q.16
-SELECT p_num, AVG(qty) AS avg_qty
-FROM sp
-GROUP BY p_num;
+SELECT * FROM Person_Workout_Progress;
 
---Q.17
-SELECT s_num, p_num, max(qty) FROM sp GROUP BY s_num; 
+--9. Built-in Function
+SELECT p.name,
+    -- Calculate smallest number of days until their soonest goal
+    DATEDIFF(MIN(g.target_date), CURDATE()) AS days_to_goal,
+    -- Assign status label
+    CASE 
+        WHEN DATEDIFF(MIN(g.target_date), CURDATE()) <= 10 THEN 'Urgent'
+        WHEN DATEDIFF(MIN(g.target_date), CURDATE()) <= 30 THEN 'On Track'
+        ELSE 'Ahead of Schedule'
+    END AS status_label
+FROM Person p
+JOIN Goal g ON p.person_id = g.person_id
+GROUP BY p.person_id;
 
---Q.18
-SELECT s_num, p_num, qty
-FROM sp sp1
-WHERE qty = (
-    SELECT MAX(qty)
-    FROM sp sp2
-    WHERE sp1.s_num = sp2.s_num);
+--10. Relational Operators
+-- Step 1: People who have done Chest exercises
+-- People who did Chest exercises
+SELECT DISTINCT p.person_id, p.name
+FROM Person p
+JOIN Workout w ON p.person_id = w.person_id
+JOIN Workout_Exercise we ON w.workout_id = we.workout_id
+JOIN Exercise e ON we.exercise_id = e.exercise_id
+WHERE e.type = 'Chest'
+
+INTERSECT
+
+-- People who did Back exercises
+SELECT DISTINCT p.person_id, p.name
+FROM Person p
+JOIN Workout w ON p.person_id = w.person_id
+JOIN Workout_Exercise we ON w.workout_id = we.workout_id
+JOIN Exercise e ON we.exercise_id = e.exercise_id
+WHERE e.type = 'Back';
+
+
+
